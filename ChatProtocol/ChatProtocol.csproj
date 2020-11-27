@@ -11,4 +11,8 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <Protobuf Include="**/*.proto" OutputDir="%(RelativeDir)" CompileOutputs="false"  />
+  </ItemGroup>
+
 </Project>
