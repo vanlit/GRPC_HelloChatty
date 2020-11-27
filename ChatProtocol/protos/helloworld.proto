@@ -27,14 +27,32 @@ service Greeter {
   rpc SayHello (HelloRequest) returns (HelloReply) {}
 
   // Accepts a message
-  rpc NewMessage (NewMessage), returns (bool) {}
+  rpc NewMessage (NewMessageContent) returns (NewMessageSendingResult) {}
 
   // Subscribes to a stream of messages
-  rpc SubscribeToMessages() returns (stream BroadcastedMessage) {}
+  rpc SubscribeToMessages(RequestedChatInfo) returns (stream BroadcastedMessage) {}
 }
 
-message NewMessage {
+
+// The request message containing the user's name.
+message HelloRequest {
+  string name = 1;
+}
+// The response message containing the greetings and the comma-separated list of names in the chat
+message HelloReply {
+  string motd = 1;
+  string namesInChat = 2;
+}
+
+message RequestedChatInfo {
+  string chatName = 1;
+}
+
+message NewMessageContent {
   string text = 1;
+}
+message NewMessageSendingResult {
+  bool success = 1;
 }
 
 message BroadcastedMessage {
@@ -42,13 +60,4 @@ message BroadcastedMessage {
   string text = 2;
 }
 
-// The request message containing the user's name.
-message HelloRequest {
-  string name = 1;
-}
 
-// The response message containing the greetings and the list of names in the chat
-message HelloReply {
-  string motd;
-  List<string> usersInTheRoom = 1;
-}
