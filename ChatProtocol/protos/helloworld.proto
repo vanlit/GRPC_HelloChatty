@@ -14,6 +14,9 @@ service HelloChatty {
   rpc SubscribeToMessages(RequestedChatInfo) returns (stream BroadcastedMessage) {}
 }
 
+// TODO: need a standard way of error returning
+// via metadata in WriteResponseHeadersAsync ?
+// via ResponseTrailers ?
 
 // The request message containing the user's name.
 message HelloRequest {
@@ -40,4 +43,5 @@ message NewMessageSendingResult {
 message BroadcastedMessage {
   string sender = 1;
   string text = 2;
+  int64 filetime_utc = 3;
 }
