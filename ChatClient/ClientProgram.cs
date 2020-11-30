@@ -1,39 +1,52 @@
 ﻿
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using HelloChattyProtocol;
 
 namespace ChatClient
 {
+    public delegate void OnNewMessageDelegate(BroadcastedMessage message);
 
-    class ChatClient
+    class ChatConsoleClient : IDisposable
     {
-        string _serverAddress;
-        HelloChatty.HelloChattyClient _rpcClient;
-        Channel _rpcChannel;
+        private string _serverAddress;
+        private HelloChatty.HelloChattyClient _rpcClient;
+        private Channel _rpcChannel;
+        private CancellationTokenSource _clientCancellation;
 
-        public ChatClient(string serverAdddress)
+        public OnNewMessageDelegate OnNewMessage { get; set; }
+
+        public ChatConsoleClient(string serverAdddress)
         {
             _serverAddress = serverAdddress;
         }
 
         public async Task PerformSessionAsync()
         {
-            _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure);
-            _rpcClient = new HelloChatty.HelloChattyClient(_rpcChannel);
+            try
+            {
+                await Connect();
+                await GreetChat();
+                SubscribeToMessages();
+                await AcceptMessagesFromUserLoop();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"{e.Message}");
+            }
 
-            await Connect();
-            await GreetChat();
-            //await SubscribeToMessages();
-            //await AcceptMessagesFromUserLoop();
-
-            await _rpcChannel.ShutdownAsync();
+            await _rpcChannel?.ShutdownAsync();
+            Console.WriteLine("End of session.");
         }
 
         private async Task<bool> Connect()
         {
             Console.WriteLine("Connecting...");
+
+            _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure);
+            _rpcClient = new HelloChatty.HelloChattyClient(_rpcChannel);
 
             try
             {
@@ -62,12 +75,111 @@ namespace ChatClient
             try
             {
                 var reply = await _rpcClient.SayHelloAsync(new HelloRequest { Name = user });
-                Console.WriteLine($"Greeting received: \n + { reply.Motd }");
-                Console.WriteLine($"Names in the chat: \n + { reply.NamesInChat }");
+                Console.WriteLine($"Greeting received: \n { reply.Motd }\n");
+                Console.WriteLine($"Names in the chat: \n { reply.NamesInChat }\n");
             }
             catch (Exception e)
             {
                 throw new Exception($"FAILED to greet! Error: {e.Message} \n {e.InnerException?.Message}");
+            }
+        }
+
+        private void SubscribeToMessages()
+        {
+            try
+            {
+                var incomingMessagesStream = _rpcClient.SubscribeToMessages(new RequestedChatInfo
+                {
+                    ChatName = "default" // not expecting chats management for now
+                });
+
+                _clientCancellation = new CancellationTokenSource();
+                ProcessIncomingMessagesUntilEndOfStream(incomingMessagesStream, _clientCancellation.Token).Start();
+            }
+            catch (Exception e)
+            {
+                _clientCancellation.Cancel();
+                throw new Exception($"FAILED to subscribe! Error: {e.Message} \n {e.InnerException?.Message}");
+            }
+        }
+
+        private async Task AcceptMessagesFromUserLoop()
+        {
+            while (!(_clientCancellation?.IsCancellationRequested ?? true))
+            {
+                Console.WriteLine("Your message line: ");
+                var text = Console.ReadLine();
+                try
+                {
+                    var sent = await _rpcClient.NewMessageAsync(
+                        new NewMessageContent
+                        {
+                            Text = text,
+                        }
+                    );
+                }
+                catch (Exception e)
+                {
+                    throw new Exception($"FAILED to send message! Error: {e.Message} \n {e.InnerException?.Message}");
+                }
+            }
+        }
+
+        private async Task ProcessIncomingMessagesUntilEndOfStream(AsyncServerStreamingCall<BroadcastedMessage> incomingMessagesStream, CancellationToken token)
+        {
+            var endReason = "Stream ended";
+            while (await incomingMessagesStream.ResponseStream.MoveNext())
+            {
+                if (token.IsCancellationRequested)
+                {
+                    endReason = "Client-side end request";
+                    break;
+                }
+                var newMessage = incomingMessagesStream.ResponseStream.Current;
+                InvokeNewMessageHandler(newMessage);
+            }
+
+            if (!_clientCancellation.IsCancellationRequested)
+            {
+                _clientCancellation.Cancel();
+            }
+
+            InvokeNewMessageHandler(new BroadcastedMessage
+            {
+                Sender = null, // the sender is not a user
+                Text = $"DISCONNECTED: {endReason}",
+                FiletimeUtc = DateTime.Now.ToFileTimeUtc(),
+            });
+        }
+
+        private void InvokeNewMessageHandler(BroadcastedMessage message)
+        {
+            try
+            {
+                OnNewMessage?.Invoke(message);
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Error thrown by OnNewMessage handler! Error: {e.Message} \n {e.InnerException?.Message}");
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_clientCancellation != null)
+            {
+                try
+                {
+                    _clientCancellation.Cancel();
+                }
+                catch (ObjectDisposedException e)
+                {
+                    Console.Error.WriteLine($"ERROR trying to unsubscribe from messages - cancellation source got disposed: {e.Message} \n {e.InnerException?.Message}");
+                }
+                catch (AggregateException e)
+                {
+                    Console.Error.WriteLine($"ERROR trying to unsubscribe from messages - AggregateException: {e.Message} \n {e.InnerException?.Message}");
+                }
             }
         }
     }
@@ -78,7 +190,7 @@ namespace ChatClient
         public static int Main(string[] args)
         {
             int result = 0;
-            var client = new ChatClient("127.0.0.1:50051");
+            var client = new ChatConsoleClient("127.0.0.1:50051");
 
             try
             {
@@ -92,7 +204,7 @@ namespace ChatClient
             }
 
             Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            Console.Read();
             return result;
         }
     }
