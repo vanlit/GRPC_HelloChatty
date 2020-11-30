@@ -19,7 +19,7 @@ namespace ChatServer
 
             Console.WriteLine($"{nameof(HelloChatty)} server is listening on port {Port}");
             Console.WriteLine("Press any key to stop the server...");
-            Console.ReadKey();
+            Console.Read();
 
             server.ShutdownAsync().Wait();
         }
