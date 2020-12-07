@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
@@ -52,7 +53,14 @@ namespace ChatClient
         {
             Console.WriteLine("Connecting...");
 
-            _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure);
+            _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure,
+                new List<ChannelOption> {
+                    // https://github.com/grpc/grpc/blob/master/doc/keepalive.md
+                    new ChannelOption ( "grpc.GRPC_ARG_KEEPALIVE_TIME_MS", 20*1000 ), // keepalive ping every X ms
+                    new ChannelOption ( "grpc.GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA", 0 ), // max amount of subsequent keepalive pings without data transfer. 0 - inf
+                    new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ) // allow keepalive without calls at all
+                }
+            );
             _rpcClient = new HelloChatty.HelloChattyClient(_rpcChannel);
 
             try

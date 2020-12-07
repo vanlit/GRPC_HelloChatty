@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Grpc.Core;
 
 namespace ChatServer
@@ -10,7 +11,14 @@ namespace ChatServer
 
         static void Main(string[] args)
         {
-            Server server = new Server
+            Server server = new Server (
+                new List<ChannelOption> {
+                    // https://github.com/grpc/grpc/blob/master/doc/keepalive.md
+                    new ChannelOption ( "grpc.GRPC_ARG_KEEPALIVE_TIME_MS", 20*1000 ), // keepalive ping every X ms
+                    new ChannelOption ( "grpc.GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA", 0 ), // max amount of subsequent keepalive pings without data transfer. 0 - inf
+                    new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ) // allow keepalive without calls at all
+                }
+            )
             {
                 Services = { HelloChattyProtocol.HelloChatty.BindService(new HelloChatty(MOTD)) },
                 Ports = { new ServerPort("localhost", Port, ServerCredentials.Insecure) }
