@@ -101,7 +101,7 @@ namespace ChatClient
                 });
 
                 _clientCancellation = new CancellationTokenSource();
-                ProcessIncomingMessagesUntilEndOfStream(incomingMessagesStream, _clientCancellation.Token).Start();
+                ProcessIncomingMessagesUntilEndOfStream(incomingMessagesStream, _clientCancellation.Token);
             }
             catch (Exception e)
             {
@@ -112,9 +112,9 @@ namespace ChatClient
 
         private async Task AcceptMessagesFromUserLoop()
         {
+            Console.WriteLine("You can now send messages: type and press enter to send.");
             while (!(_clientCancellation?.IsCancellationRequested ?? true))
             {
-                Console.WriteLine("Your message line: ");
                 var text = Console.ReadLine();
                 try
                 {
@@ -124,6 +124,10 @@ namespace ChatClient
                             Text = text,
                         }
                     );
+                    if (!sent.Success)
+                    {
+                        throw new Exception(sent.Error);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -210,7 +214,7 @@ namespace ChatClient
                 Console.WriteLine("An error occured during the session, see output above.");
             }
 
-            Console.WriteLine("Press any key to exit...");
+            Console.WriteLine("Press enter to exit...");
             Console.Read();
             return result;
         }
