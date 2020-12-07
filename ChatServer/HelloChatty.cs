@@ -11,7 +11,9 @@ namespace ChatServer
 {
     class ClientInfo
     {
+        public string Name { get; set; }
         public IServerStreamWriter<BroadcastedMessage> MessagesWriter { get; set; }
+        public bool Dead { get; set; } = false;
     }
 
     public class HelloChatty : HelloChattyBase
@@ -24,14 +26,14 @@ namespace ChatServer
         {
             Name,
         }
-        private Dictionary<string, ClientInfo> _clients;
+        private Dictionary<string, ClientInfo> _clientsByPort;
 
         private Queue<BroadcastedMessage> _newcomerMessagesHistory;
 
         public HelloChatty(string messageOfTheDay)
         {
             _messageOfTheDay = messageOfTheDay;
-            _clients = new Dictionary<string, ClientInfo>();
+            _clientsByPort = new Dictionary<string, ClientInfo>();
             _newcomerMessagesHistory = new Queue<BroadcastedMessage>(MessageQueueMaxLengh);
         }
 
@@ -45,27 +47,30 @@ namespace ChatServer
                 };
             }
 
-            if (_clients.ContainsKey(clientInfo.Name))
+            if (_clientsByPort.Values.Any(ci => ci.Name.Equals(clientInfo.Name)))
             {
+                var msg = "This name is already in use, please pick another!";
                 return new HelloReply
                 {
-                    Motd = "This name is already in use, please pick another!"
+                    Motd = msg,
                 };
             }
 
-            context.UserState[UserStateFieldName.Name.ToString()] = clientInfo.Name;
-            _clients.Add(clientInfo.Name, new ClientInfo());
+            // context.UserState[UserStateFieldName.Name.ToString()] = clientInfo.Name; // there should be a way to store some session info, but this doesn't seem to be one
+            var port = GetPeerPort(context);
+            _clientsByPort.Add(port, new ClientInfo() { Name = clientInfo.Name });
 
             return new HelloReply
             {
                 Motd = _messageOfTheDay,
-                NamesInChat = _clients.Keys.Aggregate("", (acc, name) => $"{acc},{name}"),
+                NamesInChat = string.Join(',', _clientsByPort.Values.Select(v => v.Name)),
             };
         }
 
         public override async Task<NewMessageSendingResult> NewMessage(NewMessageContent message, ServerCallContext context)
         {
-            if (!context.UserState.ContainsKey(UserStateFieldName.Name))
+            var port = GetPeerPort(context);
+            if (!_clientsByPort.ContainsKey(port))
             {
                 return new NewMessageSendingResult
                 {
@@ -74,7 +79,8 @@ namespace ChatServer
                 };
             }
 
-            var senderName = context.UserState[UserStateFieldName.Name].ToString();
+            var userInfo = _clientsByPort[port];
+            var senderName = userInfo.Name;
 
             var newMessage = new BroadcastedMessage
             {
@@ -84,7 +90,7 @@ namespace ChatServer
             };
 
             var success = false;
-            string error = null;
+            string error = "";
             try
             {
                 await BroadcastMessage(newMessage);
@@ -108,15 +114,19 @@ namespace ChatServer
         // not really maintaining more than one chat for now
         public override async Task SubscribeToMessages(RequestedChatInfo requestedChat, IServerStreamWriter<BroadcastedMessage> responseStream, ServerCallContext context)
         {
-            var username = context.UserState[UserStateFieldName.Name].ToString();
             var previousMessages = _newcomerMessagesHistory.ToList();
-            previousMessages.ForEach(async m =>
+            foreach (var prevMsg in previousMessages)
             {
-                await responseStream.WriteAsync(m);
-            });
+                await responseStream.WriteAsync(prevMsg);
+            }
+            var userInfo = _clientsByPort[GetPeerPort(context)];
+            userInfo.MessagesWriter = responseStream;
         }
 
-
+        private static string GetPeerPort(ServerCallContext context)
+        {
+            return context.Peer.Split(':')[2];
+        }
         private void AddMessageToNewcomerQueue(BroadcastedMessage messsage)
         {
             _newcomerMessagesHistory.TrimExcess();
@@ -124,12 +134,31 @@ namespace ChatServer
         }
         private async Task BroadcastMessage(BroadcastedMessage message)
         {
-            // todo: don't break on broken connections, just throw clients that don't accept messages from the room
-            var broadcastingTasks = _clients.AsEnumerable()
-                .Where(kvp => kvp.Key != message.Sender && kvp.Value.MessagesWriter != null)
-                .Select(kvp => kvp.Value.MessagesWriter.WriteAsync(message)).ToList();
+            var clientsToBroadcastTo = _clientsByPort.Values
+                .Where(v => v.Name != message.Sender && v.MessagesWriter != null && !v.Dead)
+                .ToList();
 
-                await Task.WhenAll(broadcastingTasks);
+            foreach (var client in clientsToBroadcastTo)
+            {
+                try
+                { // todo optimize by moving into a wrapping task to send them all simultaneously
+                    await client.MessagesWriter.WriteAsync(message);
+                }
+                catch (Exception e)
+                {
+                    client.Dead = true; // todo might want to save some info about the death
+                }
+            }
+
+            RemoveDeadClients();
+        }
+
+        private void RemoveDeadClients()
+        {
+            var newClientsByPort = new Dictionary<string, ClientInfo>(
+                _clientsByPort.Where(kvp => !kvp.Value.Dead)
+            );
+            _clientsByPort = newClientsByPort;
         }
     }
 }
