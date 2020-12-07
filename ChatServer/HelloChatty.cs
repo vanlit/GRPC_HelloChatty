@@ -18,6 +18,7 @@ namespace ChatServer
 
     public class HelloChatty : HelloChattyBase
     {
+        private const int MessagesStreamConnectionCheckPeriodMs = 3000;
         private const int MessageQueueMaxLengh = 10;
 
         private string _messageOfTheDay;
@@ -114,13 +115,28 @@ namespace ChatServer
         // not really maintaining more than one chat for now
         public override async Task SubscribeToMessages(RequestedChatInfo requestedChat, IServerStreamWriter<BroadcastedMessage> responseStream, ServerCallContext context)
         {
+            if (!_clientsByPort.ContainsKey(GetPeerPort(context)))
+            {
+                throw new KeyNotFoundException("You did not greet the server! Say hello first, please.");
+            }
+
+            // remember this stream for sending messages later
+            var userInfo = _clientsByPort[GetPeerPort(context)];
+            userInfo.MessagesWriter = responseStream;
+
+            // send last messages from the chat
             var previousMessages = _newcomerMessagesHistory.ToList();
             foreach (var prevMsg in previousMessages)
             {
                 await responseStream.WriteAsync(prevMsg);
             }
-            var userInfo = _clientsByPort[GetPeerPort(context)];
-            userInfo.MessagesWriter = responseStream;
+
+            while (!context.CancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(MessagesStreamConnectionCheckPeriodMs);
+            }
+
+            userInfo.Dead = true;
         }
 
         private static string GetPeerPort(ServerCallContext context)
@@ -155,10 +171,11 @@ namespace ChatServer
 
         private void RemoveDeadClients()
         {
-            var newClientsByPort = new Dictionary<string, ClientInfo>(
+            // todo notify active clients about deaths
+            var aliveClientsByPort = new Dictionary<string, ClientInfo>(
                 _clientsByPort.Where(kvp => !kvp.Value.Dead)
             );
-            _clientsByPort = newClientsByPort;
+            _clientsByPort = aliveClientsByPort;
         }
     }
 }
