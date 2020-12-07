@@ -20,12 +20,12 @@ namespace ChatServer
                 }
             )
             {
-                Services = { HelloChattyProtocol.HelloChatty.BindService(new HelloChatty(MOTD)) },
+                Services = { HelloChattyProtocol.HelloChatty.BindService(new HelloChattyImpl(MOTD)) },
                 Ports = { new ServerPort("localhost", Port, ServerCredentials.Insecure) }
             };
             server.Start();
 
-            Console.WriteLine($"{nameof(HelloChatty)} server is listening on port {Port}");
+            Console.WriteLine($"{nameof(HelloChattyImpl)} server is listening on port {Port}");
             Console.WriteLine("Press enter to stop the server...");
             Console.Read();
 

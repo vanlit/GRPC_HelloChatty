@@ -16,7 +16,7 @@ namespace ChatServer
         public bool Dead { get; set; } = false;
     }
 
-    public class HelloChatty : HelloChattyBase
+    public class HelloChattyImpl : HelloChattyBase
     {
         private const int MessagesStreamConnectionCheckPeriodMs = 3000;
         private const int MessageQueueMaxLengh = 10;
@@ -31,7 +31,7 @@ namespace ChatServer
 
         private Queue<BroadcastedMessage> _newcomerMessagesHistory;
 
-        public HelloChatty(string messageOfTheDay)
+        public HelloChattyImpl(string messageOfTheDay)
         {
             _messageOfTheDay = messageOfTheDay;
             _clientsByPort = new Dictionary<string, ClientInfo>();
