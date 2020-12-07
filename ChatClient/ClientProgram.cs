@@ -29,6 +29,7 @@ namespace ChatClient
             {
                 await Connect();
                 await GreetChat();
+                OnNewMessage += OnNewMessageHandler;
                 SubscribeToMessages();
                 await AcceptMessagesFromUserLoop();
             }
@@ -39,6 +40,12 @@ namespace ChatClient
 
             await _rpcChannel?.ShutdownAsync();
             Console.WriteLine("End of session.");
+        }
+
+        private void OnNewMessageHandler(BroadcastedMessage message)
+        {
+            var output = $"\n{message.Sender}: {message.Text}";
+            Console.WriteLine(output);
         }
 
         private async Task<bool> Connect()
