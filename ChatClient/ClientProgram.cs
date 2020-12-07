@@ -40,7 +40,7 @@ namespace ChatClient
             }
 
             await _rpcChannel?.ShutdownAsync();
-            Console.WriteLine("End of session.");
+            Console.WriteLine("\nEnd of session.");
         }
 
         private void OnNewMessageHandler(BroadcastedMessage message)
@@ -208,6 +208,9 @@ namespace ChatClient
     {
         public static int Main(string[] args)
         {
+            //Environment.SetEnvironmentVariable("GRPC_TRACE", "tcp,channel,http,secure_endpoint");
+            //Environment.SetEnvironmentVariable("GRPC_VERBOSITY", "DEBUG");
+
             int result = 0;
             var client = new ChatConsoleClient("127.0.0.1:50051");
 
