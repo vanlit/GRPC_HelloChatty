@@ -166,7 +166,7 @@ namespace ChatServer
                 }
             }
 
-            RemoveDeadClients();
+            RemoveDeadClients(); // todo do it as a background job
         }
 
         private void RemoveDeadClients()
