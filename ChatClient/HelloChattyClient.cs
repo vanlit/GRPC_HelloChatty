@@ -41,7 +41,8 @@ namespace ChatClient
         {
             _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure,
                 new List<ChannelOption> {
-                    // https://github.com/grpc/grpc/blob/master/doc/keepalive.md
+                    // docs about keeping grpc connection alive: https://github.com/grpc/grpc/blob/master/doc/keepalive.md
+                    // the mappings of the fields are in file grpc/include/grpc/impl/codegen/grpc_types.h in the official grpc core repo https://github.com/grpc/grpc
                     new ChannelOption ( "grpc.keepalive_time_ms", 1000 ), // keepalive ping every X ms
                     new ChannelOption ( "grpc.keepalive_timeout_ms", 10 * 1000 ), // peer must reply to our ping within this
                     new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ), // allow keepalive without calls at all
