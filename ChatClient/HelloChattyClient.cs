@@ -42,9 +42,12 @@ namespace ChatClient
             _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure,
                 new List<ChannelOption> {
                     // https://github.com/grpc/grpc/blob/master/doc/keepalive.md
-                    new ChannelOption ( "grpc.GRPC_ARG_KEEPALIVE_TIME_MS", 20*1000 ), // keepalive ping every X ms
-                    new ChannelOption ( "grpc.GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA", 0 ), // max amount of subsequent keepalive pings without data transfer. 0 - inf
-                    new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ) // allow keepalive without calls at all
+                    new ChannelOption ( "grpc.keepalive_time_ms", 1000 ), // keepalive ping every X ms
+                    new ChannelOption ( "grpc.keepalive_timeout_ms", 10 * 1000 ), // peer must reply to our ping within this
+                    new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ), // allow keepalive without calls at all
+                    // new ChannelOption ( "grpc.http2.max_pings_without_data", 0 ), // server-only setting
+                    // new ChannelOption ( "grpc.http2.min_ping_interval_without_data_ms", 1000), // server-only setting
+                    new ChannelOption ( "grpc.http2.max_ping_strikes", 1),
                 }
             );
             _rpcClient = new HelloChatty.HelloChattyClient(_rpcChannel);
