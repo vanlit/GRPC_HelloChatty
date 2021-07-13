@@ -9,8 +9,13 @@ namespace ChatServer
         const int Port = 3000;
         const string MOTD = "Welcome to Hello Chatty server!";
 
+        const string private_key_file = "serv_key.pem";
+        const string certificate_file = "serv_cert.crt";
+
         static void Main(string[] args)
         {
+            var key = System.IO.File.ReadAllText(private_key_file);
+            var cert = System.IO.File.ReadAllText(certificate_file);
 
             Server server = new Server (
                 new List<ChannelOption> {
@@ -30,7 +35,9 @@ namespace ChatServer
                     new ServerPort(
                         "0.0.0.0",
                         Port,
-                        SslServerCredentials.Insecure
+                        new SslServerCredentials(
+                            new List<KeyCertificatePair> { new KeyCertificatePair(key, cert) }
+                        )
                     )
                 }
             };

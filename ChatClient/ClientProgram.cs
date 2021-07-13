@@ -11,10 +11,21 @@ namespace ChatClient
     {
         private const string ServerAddress = "127.0.0.1:3000";
 
+        const string client_private_key_file = "client_key.pem";
+        const string client_certificate_file = "client_cert.crt";
+        const string server_certificate_file = "server_cert.crt";
+
         private static async Task<HelloChatty.HelloChattyClient> ConnectProtoClient(string serverAddress)
         {
+            var key = System.IO.File.ReadAllText(client_private_key_file);
+            var cert = System.IO.File.ReadAllText(client_certificate_file);
+            var serverCert = System.IO.File.ReadAllText(server_certificate_file);
 
-            var rpcChannel = new Channel(serverAddress, SslCredentials.Insecure,
+            var creds = new SslCredentials(
+                serverCert, new KeyCertificatePair(key, cert)
+            );
+
+            var rpcChannel = new Channel(serverAddress, creds,
                 new List<ChannelOption> {
                     // docs about keeping grpc connection alive: https://github.com/grpc/grpc/blob/master/doc/keepalive.md
                     // the mappings of the fields are in file grpc/include/grpc/impl/codegen/grpc_types.h in the official grpc core repo https://github.com/grpc/grpc
