@@ -9,7 +9,6 @@ namespace ChatClient
 {
     public interface IHelloChattyClient : IDisposable
     {
-        Task<bool> Connect();
         Task<HelloReply> Greet(string userName);
         void Join(string chatName);
         Task Send(string text);
@@ -32,30 +31,9 @@ namespace ChatClient
 
         private CancellationTokenSource _subscriptionCancellation;
 
-        public HelloChattyClient(string serverAddress)
+        public HelloChattyClient(HelloChatty.HelloChattyClient client)
         {
-            _serverAddress = serverAddress;
-        }
-
-        public async Task<bool> Connect()
-        {
-            _rpcChannel = new Channel(_serverAddress, ChannelCredentials.Insecure,
-                new List<ChannelOption> {
-                    // docs about keeping grpc connection alive: https://github.com/grpc/grpc/blob/master/doc/keepalive.md
-                    // the mappings of the fields are in file grpc/include/grpc/impl/codegen/grpc_types.h in the official grpc core repo https://github.com/grpc/grpc
-                    new ChannelOption ( "grpc.keepalive_time_ms", 1000 ), // keepalive ping every X ms
-                    new ChannelOption ( "grpc.keepalive_timeout_ms", 10 * 1000 ), // peer must reply to our ping within this
-                    new ChannelOption ( "grpc.keepalive_permit_without_calls", 1 ), // allow keepalive without calls at all
-                    // new ChannelOption ( "grpc.http2.max_pings_without_data", 0 ), // server-only setting
-                    // new ChannelOption ( "grpc.http2.min_ping_interval_without_data_ms", 1000), // server-only setting
-                    new ChannelOption ( "grpc.http2.max_ping_strikes", 1),
-                }
-            );
-            _rpcClient = new HelloChatty.HelloChattyClient(_rpcChannel);
-
-            await _rpcChannel.ConnectAsync();
-
-            return _rpcChannel.State == ChannelState.Ready;
+            _rpcClient = client;
         }
 
         public async Task<HelloReply> Greet(string userName)
